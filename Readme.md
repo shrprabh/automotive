@@ -14,10 +14,12 @@ automotive/
 │   ├── bronze_vehicle_ingestion           # Landing CSV → bronze_vehicle_production
 │   ├── bronze_supplier_ingestion          # Landing CSV → bronze_supplier_delivery
 │   └── bronze_quality_ingestion           # Landing CSV → bronze_quality_inspection
-└── Silver/
+├── Silver/
     ├── silver_vehicle_processing          # bronze → silver_vehicle_production (incremental + dedup)
     ├── silver_supplier_processing          # bronze → silver_supplier_delivery (incremental + dedup)
     └── silver_quality_processing           # bronze → silver_quality_inspection (incremental + dedup)
+└── Gold/
+    └── gold_vehicle_kpi_scd_merge          # silver tables → gold_vehicle_manufacturing_kpi (SCD2 KPI build)
 ```
 
 ## 2. Unity Catalog Objects
@@ -62,7 +64,7 @@ Every bronze table carries standard audit columns: `op_code`, `ingest_ts`, `sour
 
 Silver tables drop the file/load audit columns and add `processed_ts` + `batch_run_id` (UUID) instead.
 
-### Gold layer (planned)
+### Gold layer
 
 | Table | Purpose |
 | --- | --- |
@@ -95,7 +97,9 @@ Each silver table owns exactly one `control_metadata` row, so layers never fight
 4. Drop the business CSV files into the landing volumes.
 5. **`Bronze/*`** — run the three bronze ingestion notebooks to load and archive files.
 6. **`Silver/*`** — run the three silver processing notebooks to clean and deduplicate incrementally.
-7. Gold KPI build (planned next step).
+7. **`Gold/gold_vehicle_kpi_scd_merge`** — run the gold KPI SCD2 build (joins the silver tables into the SCD2 KPI table).
+
+Steps 5–7 are automated every 12 hours by the jobs in section 7.
 
 ## 6. Data Flow
 
@@ -112,6 +116,55 @@ Bronze Delta tables (raw, append-only, full audit trail)
 Silver Delta tables (cleaned, deduplicated, batch-tagged)
       │
       ▼
-Gold: gold_vehicle_manufacturing_kpi (SCD2 KPI, planned)
+Gold: gold_vehicle_manufacturing_kpi (SCD2 KPI)
 ```
+
+## 7. Jobs & Orchestration
+
+The pipeline is automated with Lakeflow Jobs on **serverless compute** (no cluster configuration, max 1 concurrent run, queueing enabled, no per-task timeout).
+
+### Individual layer jobs (7 jobs — active, every 12 hours)
+
+Each job wraps exactly one notebook task and fires on a 12-hour periodic trigger:
+
+| Layer | Job | Job ID | Notebook task |
+| --- | --- | --- | --- |
+| Bronze | `bronze_vehicle_ingestion` | 861806828459292 | `Bronze/bronze_vehicle_ingestion` |
+| Bronze | `bronze_supplier_ingestion` | 1090427536491910 | `Bronze/bronze_supplier_ingestion` |
+| Bronze | `bronze_quality_ingestion` | 795061177036678 | `Bronze/bronze_quality_ingestion` |
+| Silver | `silver_vehicle_processing` | 950654803551448 | `Silver/silver_vehicle_processing` |
+| Silver | `silver_quality_processing` | 759545564776052 | `Silver/silver_quality_processing` |
+| Silver | `silver_supplier_processing` | 755678534420776 | `Silver/silver_supplier_processing` |
+| Gold | `gold_vehicle_kpi_scd_merge` | 585303488539777 | `Gold/gold_vehicle_kpi_scd_merge` |
+
+### How a scheduled cycle runs
+
+1. Business CSVs are dropped into the `landing` volume subdirectories.
+2. Every 12 hours each job fires independently — the bronze notebooks ingest and archive landing files, the silver notebooks process rows past their watermark, and the gold notebook merges the SCD2 KPI table.
+3. Because the seven jobs run on separate timers, bronze and silver can fire at the same moment; silver simply picks up whatever bronze rows are already past its watermark and catches the rest on the next cycle.
+
+### Consolidated pipeline job: `automotive_medallion_pipeline` (ID 929104859434980)
+
+One job chains the whole medallion pipeline in a single run — it reuses the same seven notebooks (no new notebooks were created), and the seven individual jobs above were left untouched.
+
+```
+bronze_vehicle_ingestion   bronze_supplier_ingestion   bronze_quality_ingestion
+        └───────────────┬──────────────┴───────────────┘
+                        ▼
+silver_vehicle_processing   silver_quality_processing   silver_supplier_processing
+        └───────────────┬──────────────┴───────────────┘
+                        ▼
+                gold_vehicle_kpi_scd_merge
+```
+
+* **Task DAG:** the 3 bronze tasks start together in parallel; every silver task waits until all bronze tasks succeed; gold waits until all silver tasks succeed. A failure in any bronze task skips silver and gold for that run.
+* **Schedule:** 12-hour periodic trigger, **paused** — the job was created but never run, and will not fire until un-paused.
+* **Benefit:** within a single run, silver always processes the bronze rows written in that same run, so there is no cross-cycle watermark lag between layers.
+
+### How it was created / how to switch over
+
+1. Created as a single job with 7 notebook tasks pointing at the existing notebooks; its trigger was paused at creation so it would not double-process alongside the active individual jobs.
+2. To try it once: open `automotive_medallion_pipeline` and click **Run now** — the individual jobs are unaffected.
+3. To switch over permanently: **un-pause** `automotive_medallion_pipeline` and **pause** the 7 individual jobs, so the pipeline is not processed twice per cycle.
+4. The one-off setup notebooks (`Automotive`, `Control`, `Delta`) are not part of any job — they were run manually once during initial setup.
 
