@@ -1,0 +1,6 @@
+delivery_id,supplier_id,part_number,part_description,plant_code,planned_qty,delivered_qty,delivery_status,delivery_date,op_code
+D10001,SUP001,BAT-001,Battery Pack,BLR01,100,95,DELAYED,2026-05-20,I
+D10002,SUP002,MTR-002,Drive Motor,BLR01,80,80,ON_TIME,2026-05-20,I
+D10003,SUP003,GLS-010,Windshield Glass,PUN01,120,115,DELAYED,2026-05-20,I
+D10004,SUP004,TYR-020,Tyre Set,CHE01,200,200,ON_TIME,2026-05-20,I
+D10005,SUP005,SNS-030,Parking Sensor,BLR01,150,145,DELAYED,2026-05-20,I

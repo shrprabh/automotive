@@ -1,0 +1,6 @@
+inspection_id,vin_number,inspection_station,defect_category,defect_severity,rework_required,inspection_date,op_code
+Q10001,VINBLR100001,Final Inspection,Paint Defect,HIGH,Y,2026-05-20,I
+Q10002,VINBLR100002,Paint Booth,Color Mismatch,MEDIUM,Y,2026-05-20,I
+Q10003,VINPUN100003,Final Inspection,Panel Gap,LOW,N,2026-05-20,I
+Q10004,VINCHE100004,Body Inspection,Dent,HIGH,Y,2026-05-20,I
+Q10005,VINBLR100005,Final Inspection,Sensor Calibration,LOW,N,2026-05-20,I

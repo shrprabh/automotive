@@ -1,0 +1,6 @@
+vin_number,plant_code,assembly_line,model_name,production_stage,production_status,production_date,shift,op_code
+VINBLR100001,BLR01,Line-A,EV-SUV,Body Shop,COMPLETED,2026-05-20,Shift-A,I
+VINBLR100002,BLR01,Line-B,EV-Sedan,Paint Shop,IN_PROGRESS,2026-05-20,Shift-B,I
+VINPUN100003,PUN01,Line-C,Hybrid-SUV,Final Assembly,COMPLETED,2026-05-20,Shift-A,I
+VINCHE100004,CHE01,Line-A,EV-Hatch,Body Shop,HOLD,2026-05-20,Shift-C,I
+VINBLR100005,BLR01,Line-A,EV-SUV,Final Assembly,COMPLETED,2026-05-20,Shift-A,I
